@@ -1,21 +1,24 @@
-﻿namespace OAuth2Server.Models
+﻿using System;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using DotNetOpenAuth.Messaging.Bindings;
+using DotNetOpenAuth.OAuth2;
+using DotNetOpenAuth.OAuth2.ChannelElements;
+using DotNetOpenAuth.OAuth2.Messages;
+
+namespace OAuth2Server.Infrastructure
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Security.Cryptography;
-
-    using DotNetOpenAuth.Messaging.Bindings;
-    using DotNetOpenAuth.OAuth2;
-    using DotNetOpenAuth.OAuth2.ChannelElements;
-    using DotNetOpenAuth.OAuth2.Messages;
-    using DotNetOpenAuth.OpenId.Provider;
-
     /// <summary>
     /// Our implementation of the <see cref="IAuthorizationServerHost"/> interface. This class will be the heart of the
     /// OAuth 2.0 server, as it will handle all token requests.
     /// </summary>
     internal class AuthorizationServerHost : IAuthorizationServerHost
     {
+        private readonly ICryptoKeyStore _cryptoKeyStore;
+        private readonly INonceStore _nonceStore;
+        private readonly IClientRepository _clientRepository;
+        private readonly IUserRepository _userRepository;
+
         /// <summary>
         /// The default resource server public key used for encrypting access tokens. In a real-life situation, you would
         /// get this from a certificate file.
@@ -42,20 +45,12 @@
                                                                                       D = new byte[] { 108, 15, 123, 176, 150, 208, 197, 72, 23, 53, 159, 63, 53, 85, 238, 197, 153, 187, 156, 187, 192, 226, 186, 170, 26, 168, 245, 196, 65, 223, 248, 81, 170, 79, 91, 191, 83, 15, 31, 77, 39, 119, 249, 143, 245, 183, 49, 105, 115, 15, 122, 242, 87, 221, 94, 230, 196, 146, 59, 7, 103, 94, 9, 223, 146, 180, 189, 86, 190, 94, 242, 59, 32, 54, 23, 181, 124, 170, 63, 172, 90, 158, 169, 140, 6, 102, 170, 0, 135, 199, 35, 196, 212, 238, 196, 56, 14, 0, 140, 197, 169, 240, 156, 43, 182, 123, 102, 79, 89, 20, 120, 171, 43, 223, 58, 190, 230, 166, 185, 162, 186, 226, 31, 206, 196, 188, 104, 1 },
                                                                                   };
 
-        /// <summary>
-        /// Standard, in-memory provider application store that is used a crypto key- and nonce store.
-        /// </summary>
-        private readonly StandardProviderApplicationStore standardProviderApplicationStore;
-
-        public AuthorizationServerHost()
+        public AuthorizationServerHost(ICryptoKeyStore cryptoKeyStore, INonceStore nonceStore, IClientRepository clientRepository, IUserRepository userRepository)
         {
-            // Use a default in-memory provider application store. This is a class that is ideal for use in test
-            // applications as it requires no further setup and can be used as both the crypto key- and nonce store.
-            // In real-life situations you would of course implement your own crypto key- and nonce store, which will
-            // most likely use some kind of persistent storage to store keys and nonces. As the nonces are kept in memory
-            // only, it is not possible to refresh tokens as the issued tokens will have been removed from memory the moment
-            // the refresh token request is being processed
-            this.standardProviderApplicationStore = new StandardProviderApplicationStore();
+            _cryptoKeyStore = cryptoKeyStore;
+            _nonceStore = nonceStore;
+            _clientRepository = clientRepository;
+            _userRepository = userRepository;
         }
 
         /// <summary>
@@ -70,7 +65,7 @@
         {
             get
             {
-                return this.standardProviderApplicationStore;
+                return _cryptoKeyStore;
             }
         }
 
@@ -84,7 +79,7 @@
         {
             get
             {
-                return this.standardProviderApplicationStore;
+                return _nonceStore;
             }
         }
 
@@ -104,7 +99,6 @@
             accessToken.Lifetime = TimeSpan.FromHours(1);
             accessToken.ResourceServerEncryptionKey = CreateRsaCryptoServiceProvider(ResourceServerEncryptionPublicKey);
             accessToken.AccessTokenSigningKey = CreateRsaCryptoServiceProvider(AuthorizationServerSigningKey);
-
             return new AccessTokenResult(accessToken);
         }
 
@@ -120,11 +114,12 @@
             // We use a hard-code client identifier and secret. In real-life situations it is quite likely that you
             // will store your clients in a persistent store. Retrieving the client would then mean retrieving it 
             // from the store
-            if (clientIdentifier == "demo-client-identifier")
+            var client = _clientRepository.Get(clientIdentifier);
+            if (clientIdentifier != null)
             {
-                return new ClientDescription("demo-client-secret", null, ClientType.Public);    
+                return new ClientDescription(client.SecretKey, client.CallbackUrl, ClientType.Public);
             }
-
+            
             // If there is no client with the specified identifier, throw an ArgumentException. Note: you should
             // not return null
             throw new ArgumentException("No client could be found with the specified client identifier.", "clientIdentifier");
@@ -177,10 +172,10 @@
         {
             // We use a fixed username and password to determine if the username/password combination is correct. Of course, a real-life application
             // would probably use a persistent store and check if the username and password combination matches on of the stored users
-            var userCredentialsAreCorrect = userName == "demo-user-username" && password == "demo-user-password";
-
+            var user = _userRepository.Get("demo-user-username", "demo-user-password");
+            
             // The token request is approved when the user credentials are correct and the user is authorized for the requested scopes
-            var isApproved = userCredentialsAreCorrect && UserIsAuthorizedForRequestedScopes(userName, accessRequest.Scope);
+            var isApproved = user != null && UserIsAuthorizedForRequestedScopes(userName, accessRequest.Scope);
 
             return new AutomatedUserAuthorizationCheckResponse(accessRequest, isApproved, userName);
         }
@@ -200,13 +195,13 @@
             // We define the scopes the client is authorized for. Once again, you would expect these scopes to be retrieved from
             // a persistent store. Note: the scopes a client is authorized for can very well differ between clients
             var scopesClientIsAuthorizedFor = new HashSet<string>(OAuthUtilities.ScopeStringComparer);
-            scopesClientIsAuthorizedFor.Add("demo-client-scope");
+            scopesClientIsAuthorizedFor.Add("user");
 
             // Check if the scopes that are being requested are a subset of the scopes the user is authorized for.
             // If not, that means that the user has requested at least one scope it is not authorized for
             var clientIsAuthorizedForRequestedScopes = accessRequest.Scope.IsSubsetOf(scopesClientIsAuthorizedFor);
 
-            // The token request is approved when the client is authorized for the requested scopes
+            // The token request is appro ved when the client is authorized for the requested scopes
             var isApproved = clientIsAuthorizedForRequestedScopes;
 
             return new AutomatedAuthorizationCheckResponse(accessRequest, isApproved);
@@ -224,7 +219,7 @@
             // a persistent store. Note: the scopes a user is authorized for can very well differ between users. Think of an
             // admin user being authorized for more scopes than a regular user
             var scopesUserIsAuthorizedFor = new HashSet<string>(OAuthUtilities.ScopeStringComparer);
-            scopesUserIsAuthorizedFor.Add("demo-user-scope");
+            scopesUserIsAuthorizedFor.Add("user");
 
             // Check if the scopes that are being requested are a subset of the scopes the user is authorized for.
             // If not, that means that the user has requested at least one scope it is not authorized for

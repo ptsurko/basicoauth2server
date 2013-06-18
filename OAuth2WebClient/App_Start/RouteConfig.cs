@@ -16,7 +16,7 @@ namespace OAuth2WebClient
             routes.MapRoute(
                 name: "Default",
                 url: "{controller}/{action}/{id}",
-                defaults: new { controller = "Home", action = "Index", id = UrlParameter.Optional }
+                defaults: new { controller = "Home", action = "AuthorizationCodeGrant", id = UrlParameter.Optional }
             );
         }
     }

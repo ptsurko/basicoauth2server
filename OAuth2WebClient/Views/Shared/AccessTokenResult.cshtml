@@ -5,19 +5,18 @@
     @if (ViewBag.AccessToken != null)
     {
         var accessToken = (AuthorizationState)ViewBag.AccessToken;
-    
         <p>
             The access token was retrieved:
         </p>
     
         <dl>
             <dt>Access token</dt>
-            <dd>@accessToken.AccessToken</dd>
+            <dd>@Html.TextArea("AccessToken", accessToken.AccessToken, new { cols = 70, rows = 4})</dd>
         
             @if (!string.IsNullOrEmpty(accessToken.RefreshToken))
             {
                 <dt>Refresh token</dt>
-                <dd>@accessToken.RefreshToken</dd>
+                <dd>@Html.TextArea("RefreshToken", accessToken.RefreshToken, new { cols = 70, rows = 4})</dd>
             }
         
             <dt>Expiration date (UTC)</dt>

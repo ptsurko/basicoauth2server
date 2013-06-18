@@ -1,0 +1,17 @@
+﻿@using DotNetOpenAuth.OAuth2
+@model OAuth2Server.ViewModels.OAuth.AccountAuthorizeModel
+
+<h2>Authorize</h2>
+
+@using (Html.BeginForm("Authorize", "OAuth", FormMethod.Post)) {
+	@AntiForgery.GetHtml()
+    @Html.Hidden("IsApproved")
+	@Html.Hidden("client_id", Model.AuthorizationRequest.ClientIdentifier)
+	@Html.Hidden("redirect_uri", Model.AuthorizationRequest.Callback)
+	@Html.Hidden("state", Model.AuthorizationRequest.ClientState)
+	@Html.Hidden("scope", OAuthUtilities.JoinScopes(Model.AuthorizationRequest.Scope))
+	@Html.Hidden("response_type", Model.AuthorizationRequest.ResponseType == DotNetOpenAuth.OAuth2.Messages.EndUserAuthorizationResponseType.AccessToken ? "token" : "code")
+	<p>Are you sure you want to allow the client <b>@Model.ClientIdentifier</b> to access your data, with this scope: <b>@OAuthUtilities.JoinScopes(Model.Scope)</b></p>
+	<input type="submit" name="approval" value="true" />
+	<input type="submit" name="approval" value="false" />
+}

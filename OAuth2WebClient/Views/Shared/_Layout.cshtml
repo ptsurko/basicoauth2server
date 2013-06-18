@@ -5,14 +5,25 @@
         <title>@ViewBag.Title - My ASP.NET MVC Application</title>
         <link href="~/favicon.ico" rel="shortcut icon" type="image/x-icon" />
         <meta name="viewport" content="width=device-width" />
-        @Styles.Render("~/Content/css")
-        @Scripts.Render("~/bundles/modernizr")
+        <link href="@Url.Content("~/Content/Site.css")" rel="stylesheet" type="text/css" />
     </head>
     <body>
         <header>
             <div class="content-wrapper">
                 <div class="float-left">
-                    <p class="site-title">@Html.ActionLink("your logo here", "Index", "Home")</p>
+                    <p class="site-title">@Html.ActionLink("your logo here", "AuthorizationCodeGrant", "Home")</p>
+                </div>
+                <div class="float-right">
+                    <section id="login" >
+                    </section>
+                    <nav>
+                        <ul id="menu">
+                            <li>@Html.ActionLink("Authorization code", "AuthorizationCodeGrant", "Home")</li>
+                            <li>@Html.ActionLink("Client-Side Web Application", "ResourceOwnerCredentialsGrant", "Home")</li>
+                            <li>@Html.ActionLink("Client credentials", "ClientCredentialsGrant", "Home")</li>
+                            <li>@Html.ActionLink("Resource owner credentials", "ResourceOwnerCredentialsGrant", "Home")</li>
+                        </ul>
+                    </nav>
                 </div>
             </div>
         </header>
@@ -30,7 +41,8 @@
             </div>
         </footer>
 
-        @Scripts.Render("~/bundles/jquery")
-        @RenderSection("scripts", required: false)
+        <script type="text/javascript" src="~/Scripts/jquery-1.9.1.min.js"></script>
+        <script type="text/javascript" src="~/Scripts/jquery.validate.min.js"></script>
+        <script type="text/javascript" src="~/Scripts/jquery.validate.unobtrusive.min.js"></script>
     </body>
 </html>
